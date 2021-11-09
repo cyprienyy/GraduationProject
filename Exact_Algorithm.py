@@ -132,6 +132,7 @@ class Info:
 
         # 添加路径约束
         model.addConstrs(x_i_j_v.sum(i, '*', '*') == 1 for i in self.tasks)
+        model.addConstrs(x_i_j_v.sum(i, '*', '*') <= 1 for i in self.satellites)
         model.addConstrs(x_i_j_v.sum(i, '*', '*') == 1 for i in self.vehicle_start_locations)
         model.addConstrs(x_i_j_v.sum('*', i, '*') == 1 for i in self.vehicle_end_locations)
         model.addConstrs(
