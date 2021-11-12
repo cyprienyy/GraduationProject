@@ -1,6 +1,7 @@
-a = [[0,6, 13, 2, 5, 18, 7, 8, 20, 9, 3, 24, 12, 25, 1,0],[ 0,21, 22, 4, 23, 14, 16, 17, 19, 11, 10, 15,0]]
-for i in [0,1]:
-    for j in range(len(a[i])):
-        if a[i][j] !=0:
-            a[i][j] += 26
-print(a)
+from collections import deque
+import pickle
+from BP import MainProblem, Route
+
+myfile = open('myfile.txt', 'rb')
+a = pickle.load(myfile)
+myfile.close()

@@ -85,7 +85,7 @@ class Info:
         self.c_ij = np.zeros((station_num + satellite_num + 1 + 2 * self.vehicle_num,
                               station_num + satellite_num + 1 + 2 * self.vehicle_num))
         self.c_ij[:station_num + 1, :station_num + 1] = c_ij
-        self.c_ij[station_num:, :station_num + 1] = c_ij[0, :station_num + 1]
+        self.c_ij[station_num + 1:, :station_num + 1] = c_ij[0, :station_num + 1]
         self.c_ij[:station_num + 1, station_num + 1:] = c_ij[:station_num + 1, 0][:, np.newaxis]
 
         self.t_ij = np.zeros((station_num + satellite_num + 1 + 2 * self.vehicle_num,
@@ -168,6 +168,9 @@ class Info:
 
         model.write('1.sol')
 
+
+INFO = Info()
+INFO.vehicle_start_load = [INFO.vehicle_capacity - _l for _l in INFO.vehicle_start_load]
 
 if __name__ == '__main__':
     info = Info()
