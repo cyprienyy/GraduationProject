@@ -4,9 +4,41 @@ from gurobipy import GRB
 import numpy as np
 from collections import deque, Counter
 import pickle
+import heapq
 
 BIG = 1E10
 GAP = 0.001
+
+
+class PriorityQueue:
+    def __init__(self):
+        self.__queue = []
+        self.__index = 0
+
+    def _push(self, item, priority):
+        heapq.heappush(self.__queue, (priority, self.__index, item))
+        # 第一个参数：添加进的目标序列
+        # 第二个参数：将一个元组作为整体添加进序列，目的是为了方便比较
+        # 在priority相等的情况下，比较_index
+        # priority为负数使得添加时按照优先级从大到小排序，因为堆排序的序列的第一个元素永远是最小的
+        self.__index += 1
+
+    def _pop(self):
+        # 返回按照-priority 和 _index 排序后的第一个元素(是一个元组)的最后一个元素(item)
+        return heapq.heappop(self.__queue)[-1]
+
+    def append(self, _label):
+        self._push(_label, _label.cost)
+
+    def popleft(self):
+        return self._pop()
+
+    def is_empty(self):
+        if self.__queue:
+            return True
+        else:
+            return False
+
 
 class UserParam:
     BIG = BIG
@@ -176,6 +208,8 @@ class MainProblem:
         self.X_r = []
         self.n_r = np.ones((INFO.task_num + INFO.vehicle_num, 1))
         self.c_r = 1E10
+        self.demand_constr = []
+        self.vehicle_constr = []
 
         self.MainProbRelax = gp.Model()  # 松弛后的列生成主问题
 
@@ -185,13 +219,15 @@ class MainProblem:
         self.X_r.append(x)
         # 添加约束
         for j in INFO.tasks:
-            self.MainProbRelax.addConstr(
+            constr = self.MainProbRelax.addConstr(
                 gp.quicksum(self.n_r[j - 1, r] * self.X_r[r] for r in range(self.n_r.shape[1])) == 1,
                 name='demand_constr')
+            self.demand_constr.append((j, constr))
         for j in INFO.vehicle_start_locations:
-            self.MainProbRelax.addConstr(
+            constr = self.MainProbRelax.addConstr(
                 gp.quicksum(self.n_r[j - 1, r] * self.X_r[r] for r in range(self.n_r.shape[1])) <= 1,
                 name='vehicle_constr')
+            self.vehicle_constr.append((j, constr))
         self.MainProbRelax.setAttr(GRB.Attr.ModelSense, GRB.MINIMIZE)
 
         self.MainProbRelax.update()
@@ -225,7 +261,7 @@ class MainProblem:
 class OneLevel:
     def __init__(self):
         self.sub_problem = None
-        self.UL = deque()
+        self.UL = PriorityQueue()
         self.TL = list()
         for _ in range(INFO.task_num + 3):
             a = label_set()
@@ -234,14 +270,18 @@ class OneLevel:
     @staticmethod
     def compare_label1_label2(label1: label, label2: label):
         # 0即无关系，-1代表label1 dominates，1代表label2 dominates
-        if label1.vehicle_index != label2.vehicle_index:
+        if INFO.vehicle_start_load[label1.vehicle_index] != INFO.vehicle_start_load[label2.vehicle_index] \
+                or INFO.vehicle_start_locations[label1.vehicle_index] \
+                != INFO.vehicle_start_locations[label2.vehicle_index] \
+                or INFO.vehicle_end_locations[label1.vehicle_index] \
+                != INFO.vehicle_end_locations[label2.vehicle_index]:
             return 0
         label_1_flag = True
         label_2_flag = True
         count = 0
         for i, visited in enumerate(label1.visited[:label.task_num + 1]):
-            if label2.visited[i] == 1:
-                count += 1
+            # if label2.visited[i] == 1:
+            #     count += 1
             if visited > label2.visited[i]:
                 label_1_flag = False
             if visited < label2.visited[i]:
@@ -282,9 +322,19 @@ class OneLevel:
             self.UL.append(_label)
             self.TL[0].add_label(_label, self.compare_label1_label2)
 
-        while self.UL:
+        sol_count = 0
+
+        while self.UL.is_empty():
             _label = self.UL.popleft()
-            # print(_label.path)
+            # print(_label.path, _label.dominated)
+
+            if _label.place == INFO.vehicle_end_locations[
+                _label.vehicle_index] and _label.cost < 0 and _label.dominated is False:
+                sol_count += 1
+
+            if sol_count >= 2 * INFO.task_num:
+                break
+
             if _label.dominated is False and _label.place != INFO.vehicle_end_locations[_label.vehicle_index]:
                 # print('开始拓展')
                 i = _label.place
@@ -306,8 +356,9 @@ class OneLevel:
                                                    j,
                                                    real_j)
                         if _new_label is not None:
-                            self.UL.append(_new_label)
                             self.TL[j].add_label(_new_label, self.compare_label1_label2)
+                            if _new_label.dominated is False:
+                                self.UL.append(_new_label)
 
     def return_result(self):
         _label = self.TL[-1].get_best()
@@ -322,7 +373,7 @@ class OneLevel:
         return _label.cost, route
 
     def clear(self):
-        self.UL = deque()
+        self.UL = PriorityQueue()
         for ls in self.TL:
             ls.deque = deque()
 
@@ -330,7 +381,12 @@ class OneLevel:
 if __name__ == '__main__':
     userParam = UserParam()
     one_level = OneLevel()
-    main_problem = MainProblem([])
+
+    myfile = open('C101_10.txt', 'rb')
+    routes = pickle.load(myfile)
+    myfile.close()
+
+    main_problem = MainProblem(routes)
     main_problem.optimize()
     _dual = main_problem.get_dual_solution()
     userParam.adjust_obj_coeff(_dual)
@@ -338,22 +394,18 @@ if __name__ == '__main__':
     one_level.label_setting(userParam)
     _cost, _route = one_level.return_result()
 
-
-
     while _cost < -1E-6:
         main_problem.add_column_by_route(_route)
+        myfile = open('C101_10.txt', 'wb+')
+        pickle.dump(main_problem.routes, myfile)
+        myfile.close()
         main_problem.optimize()
         _dual = main_problem.get_dual_solution()
+        print(_dual)
         userParam.adjust_obj_coeff(_dual)
         one_level.clear()
         one_level.label_setting(userParam)
         _cost, _route = one_level.return_result()
-        print(_dual)
         print(_cost)
         print(_route.path)
-
-    myfile = open('myfile.txt', 'wb+')
-    pickle.dump(main_problem.routes, myfile)
-    myfile.close()
-
     print('finished')
