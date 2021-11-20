@@ -8,6 +8,7 @@ import heapq
 
 BIG = 1E10
 GAP = 0.001
+COL = 1
 
 
 class PriorityQueue:
@@ -38,6 +39,32 @@ class PriorityQueue:
             return True
         else:
             return False
+
+
+class K_PriorityQueue:
+    def __init__(self, k):
+        self.__queue = []
+        self.__index = 0
+        self.k = k
+        self.cnt = 0
+
+    def push(self, item, priority):
+        if self.cnt < self.k:
+            heapq.heappush(self.__queue, (-priority, self.__index, item))
+            self.__index += 1
+            self.cnt += 1
+        else:
+            if priority < -self.__queue[0][0]:
+                self.pop()
+                heapq.heappush(self.__queue, (priority, self.__index, item))
+                self.__index += 1
+
+    def pop(self):
+        # 返回按照-priority 和 _index 排序后的第一个元素(是一个元组)的最后一个元素(item)
+        return heapq.heappop(self.__queue)[-1]
+
+    def get_res(self):
+        return [a[-1] for a in self.__queue]
 
 
 class UserParam:
@@ -145,16 +172,15 @@ class label_set:
             _new_deque.append(label)
         self.deque = _new_deque
 
-    def get_best(self):
+    def get_best(self, k):
         if len(self.deque) == 0:
             raise Exception('没有找到任何列')
-        res = float('inf')
-        _best = None
+        res = K_PriorityQueue(k)
         for _label in self.deque:
-            if _label.cost < res:
-                _best = _label
-                res = _label.cost
-        return _best
+            if _label.cost < 0:
+                res.push(_label, _label.cost)
+        res = res.get_res()
+        return res
 
     def print_paths(self):
         for _label in self.deque:
@@ -231,6 +257,7 @@ class MainProblem:
         self.MainProbRelax.setAttr(GRB.Attr.ModelSense, GRB.MINIMIZE)
 
         self.MainProbRelax.update()
+        self.MainProbRelax.setParam('OutputFlag', 0)
 
         self.routes = routes
         if self.routes is not None:
@@ -270,12 +297,12 @@ class OneLevel:
     @staticmethod
     def compare_label1_label2(label1: label, label2: label):
         # 0即无关系，-1代表label1 dominates，1代表label2 dominates
-        if INFO.vehicle_start_load[label1.vehicle_index] != INFO.vehicle_start_load[label2.vehicle_index] \
-                or INFO.vehicle_start_locations[label1.vehicle_index] \
-                != INFO.vehicle_start_locations[label2.vehicle_index] \
-                or INFO.vehicle_end_locations[label1.vehicle_index] \
-                != INFO.vehicle_end_locations[label2.vehicle_index]:
-            return 0
+        # if INFO.vehicle_start_load[label1.vehicle_index] != INFO.vehicle_start_load[label2.vehicle_index] \
+        #         or INFO.vehicle_start_locations[label1.vehicle_index] \
+        #         != INFO.vehicle_start_locations[label2.vehicle_index] \
+        #         or INFO.vehicle_end_locations[label1.vehicle_index] \
+        #         != INFO.vehicle_end_locations[label2.vehicle_index]:
+        #     return 0
         label_1_flag = True
         label_2_flag = True
         count = 0
@@ -323,16 +350,18 @@ class OneLevel:
             self.TL[0].add_label(_label, self.compare_label1_label2)
 
         sol_count = 0
+        cnt = 0
 
         while self.UL.is_empty():
             _label = self.UL.popleft()
             # print(_label.path, _label.dominated)
+            cnt += 1
 
             if _label.place == INFO.vehicle_end_locations[
                 _label.vehicle_index] and _label.cost < 0 and _label.dominated is False:
                 sol_count += 1
 
-            if sol_count >= 2 * INFO.task_num:
+            if sol_count >= 8 * COL:
                 break
 
             if _label.dominated is False and _label.place != INFO.vehicle_end_locations[_label.vehicle_index]:
@@ -349,6 +378,7 @@ class OneLevel:
 
                     if to_visit == 0 and userParam.banned(i, real_j) is False:  # 在此处判断某条弧是否被禁止使用
                         penalty = self.return_penalty(i, real_j, _label.time)
+                        # penalty = 0
                         _new_label = _label.extend(userParam.get_cost(i, real_j) + penalty,
                                                    INFO.t_ij[i][real_j] + INFO.service_time[real_j],
                                                    INFO.c_ij[i][real_j] + penalty,
@@ -359,18 +389,25 @@ class OneLevel:
                             self.TL[j].add_label(_new_label, self.compare_label1_label2)
                             if _new_label.dominated is False:
                                 self.UL.append(_new_label)
+        print('处理标签数', cnt)
 
     def return_result(self):
-        _label = self.TL[-1].get_best()
-        route = Route()
-        route.vehicle_index = _label.vehicle_index
-        route.time = _label.time
-        route.cost = _label.dis
-        route.path = _label.path
-        _res = [0] * INFO.vehicle_num
-        _res[route.vehicle_index] = 1
-        route.coef = _label.visited[1:INFO.task_num + 1] + _res
-        return _label.cost, route
+        _labels = self.TL[-1].get_best(10)
+        _cost = _labels[0].cost
+        res = []
+        for _label in _labels:
+            route = Route()
+            route.vehicle_index = _label.vehicle_index
+            route.time = _label.time
+            route.cost = _label.dis
+            route.path = _label.path
+            _res = [0] * INFO.vehicle_num
+            _res[route.vehicle_index] = 1
+            route.coef = _label.visited[1:INFO.task_num + 1] + _res
+            res.append(route)
+            if _label.cost < _cost:
+                _cost = _label.cost
+        return _cost, res
 
     def clear(self):
         self.UL = PriorityQueue()
@@ -382,9 +419,11 @@ if __name__ == '__main__':
     userParam = UserParam()
     one_level = OneLevel()
 
-    myfile = open('C101_10.txt', 'rb')
-    routes = pickle.load(myfile)
-    myfile.close()
+    file_name_str = 'C101_15'
+    routes = []
+    # myfile = open('C101_10.txt', 'rb')
+    # routes = pickle.load(myfile)
+    # myfile.close()
 
     main_problem = MainProblem(routes)
     main_problem.optimize()
@@ -392,11 +431,13 @@ if __name__ == '__main__':
     userParam.adjust_obj_coeff(_dual)
     one_level.clear()
     one_level.label_setting(userParam)
-    _cost, _route = one_level.return_result()
+    _cost, _routes = one_level.return_result()
 
     while _cost < -1E-6:
-        main_problem.add_column_by_route(_route)
-        myfile = open('C101_10.txt', 'wb+')
+        for _route in _routes:
+            main_problem.add_column_by_route(_route)
+        COL += 1
+        myfile = open(file_name_str + '.txt', 'wb+')
         pickle.dump(main_problem.routes, myfile)
         myfile.close()
         main_problem.optimize()
@@ -405,7 +446,8 @@ if __name__ == '__main__':
         userParam.adjust_obj_coeff(_dual)
         one_level.clear()
         one_level.label_setting(userParam)
-        _cost, _route = one_level.return_result()
+        _cost, _routes = one_level.return_result()
         print(_cost)
-        print(_route.path)
+        # print(_route.path)
+    main_problem.MainProbRelax.write(file_name_str + '.sol')
     print('finished')
