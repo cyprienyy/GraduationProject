@@ -221,10 +221,33 @@ class label:
             _new_label.f = self.f + f_add
             _new_label.visited[self.intermediate_stop] = 0
 
+        for j, stat in enumerate(_new_label.visited):
+            if stat == 1 or stat == -1 or j == self.start or j == self.end or \
+                    (stat == -2 and des != self.intermediate_stop):
+                continue
+            if j == self.intermediate_stop:
+                test_time = INFO.t_ij[place][INFO.satellites[0]] + \
+                            INFO.t_ij[INFO.satellites[0]][INFO.vehicle_end_locations[_new_label.vehicle_index]] + \
+                            INFO.service_time[INFO.satellites[0]]
+                demand = 0
+            else:
+                test_time = INFO.t_ij[place][j] + \
+                            INFO.t_ij[j][INFO.vehicle_end_locations[_new_label.vehicle_index]] + \
+                            INFO.service_time[j]
+                demand = INFO.task_demand[j]
+
+            if _new_label.time + test_time > INFO.H:
+                _new_label.visited[j] = -1
+            elif _new_label.f < demand:
+                _new_label.visited[j] = -2
+            else:
+                _new_label.visited[j] = 0
+
         if _new_label.time <= INFO.H and _new_label.f >= 0:
             _new_label.path = self.path + [place]
             return _new_label
         else:
+            # raise Exception('不应该无法产生新标签')
             return None
 
 
@@ -309,9 +332,9 @@ class OneLevel:
         for i, visited in enumerate(label1.visited[:label.task_num + 1]):
             # if label2.visited[i] == 1:
             #     count += 1
-            if visited > label2.visited[i]:
+            if visited == 1 and label2.visited[i] <= 0:
                 label_1_flag = False
-            if visited < label2.visited[i]:
+            if visited <= 0 and label2.visited[i] == 1:
                 label_2_flag = False
         # if count == 3:
         #     print('stop')
@@ -393,7 +416,7 @@ class OneLevel:
 
     def return_result(self):
         _labels = self.TL[-1].get_best(10)
-        _cost = _labels[0].cost
+        _cost = 0
         res = []
         for _label in _labels:
             route = Route()
@@ -403,7 +426,13 @@ class OneLevel:
             route.path = _label.path
             _res = [0] * INFO.vehicle_num
             _res[route.vehicle_index] = 1
-            route.coef = _label.visited[1:INFO.task_num + 1] + _res
+            _coef = []
+            for i in _label.visited[1:INFO.task_num + 1]:
+                if i == 1:
+                    _coef.append(1)
+                else:
+                    _coef.append(0)
+            route.coef = _coef + _res
             res.append(route)
             if _label.cost < _cost:
                 _cost = _label.cost
@@ -435,6 +464,7 @@ if __name__ == '__main__':
 
     while _cost < -1E-6:
         for _route in _routes:
+            # print(_route.path)
             main_problem.add_column_by_route(_route)
         COL += 1
         myfile = open(file_name_str + '.txt', 'wb+')
