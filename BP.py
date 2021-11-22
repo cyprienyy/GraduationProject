@@ -454,7 +454,6 @@ class columngen:
     def computeColGen(self, userParam, routes):
         COL = 0
         one_level = OneLevel()
-        # file_name_str = 'C101_10'
         main_problem = MainProblem(routes)
         main_problem.optimize()
         _dual = main_problem.get_dual_solution()
@@ -464,47 +463,30 @@ class columngen:
         _cost, _routes = one_level.return_result()
         while _cost < -1E-6:
             for _route in _routes:
-                # print(_route.path)
                 main_problem.add_column_by_route(_route)
             COL += 1
-            # myfile = open(file_name_str + '.txt', 'wb+')
-            # pickle.dump(main_problem.routes, myfile)
-            # myfile.close()
             main_problem.optimize()
             _dual = main_problem.get_dual_solution()
-            # print(_dual)
             userParam.adjust_obj_coeff(_dual)
             one_level.clear()
             one_level.label_setting(userParam)
             _cost, _routes = one_level.return_result()
-            # print(_cost)
-            # print(_route.path)
-        # main_problem.MainProbRelax.write(file_name_str + '.sol')
-        # print('finished')
+        print('迭代次数: ', COL)
         if main_problem.X_r[0].x < 1E-6:
             "=====调整routes的Q值====="
             for i, x in enumerate(main_problem.X_r[1:]):
                 routes[i].setQ(x.X)
-
-            # myfile = open('myfile.txt', 'wb+')
-            # pickle.dump(main_problem.routes, myfile)
-            # myfile.close()
-
             return True, main_problem.MainProbRelax.ObjVal
         else:
             return False, 1E10
 
 
 if __name__ == '__main__':
-    """
+
     userParam = UserParam()
     one_level = OneLevel()
 
-    file_name_str = 'C101_15'
     routes = []
-    # myfile = open('C101_10.txt', 'rb')
-    # routes = pickle.load(myfile)
-    # myfile.close()
 
     main_problem = MainProblem(routes)
     main_problem.optimize()
@@ -533,7 +515,3 @@ if __name__ == '__main__':
         # print(_route.path)
     main_problem.MainProbRelax.write(file_name_str + '.sol')
     print('finished')
-    """
-
-    cg = columngen()
-    print(cg.computeColGen(UserParam(), []))
