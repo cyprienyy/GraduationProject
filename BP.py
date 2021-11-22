@@ -72,6 +72,7 @@ class UserParam:
     distBase = INFO.c_ij
     timeBase = INFO.t_ij
     gap = GAP
+    satellite = INFO.satellites[0]
 
     # 有一个cost额外用来计算SPPRC
 
@@ -79,6 +80,7 @@ class UserParam:
         self.dist = self.distBase.copy()
         self.edges = np.zeros(self.dist.shape)
         self.duals = [20] * INFO.task_num + [30] * INFO.vehicle_num
+        return
 
     def reset(self):
         self.dist = self.distBase.copy()
@@ -108,6 +110,9 @@ class UserParam:
 
     def get_vehicle_fixed_cost(self, vehicle_index):
         return - self.duals[INFO.task_num + vehicle_index]
+
+    def ban(self, i, j):
+        self.set_dist(i, j, self.BIG)
 
 
 class Route:
@@ -444,7 +449,53 @@ class OneLevel:
             ls.deque = deque()
 
 
+class columngen:
+    def computeColGen(self, userParam, routes):
+        COL = 0
+        one_level = OneLevel()
+        file_name_str = 'C101_10'
+        main_problem = MainProblem(routes)
+        main_problem.optimize()
+        _dual = main_problem.get_dual_solution()
+        userParam.adjust_obj_coeff(_dual)
+        one_level.clear()
+        one_level.label_setting(userParam)
+        _cost, _routes = one_level.return_result()
+        while _cost < -1E-6:
+            for _route in _routes:
+                # print(_route.path)
+                main_problem.add_column_by_route(_route)
+            COL += 1
+            # myfile = open(file_name_str + '.txt', 'wb+')
+            # pickle.dump(main_problem.routes, myfile)
+            # myfile.close()
+            main_problem.optimize()
+            _dual = main_problem.get_dual_solution()
+            # print(_dual)
+            userParam.adjust_obj_coeff(_dual)
+            one_level.clear()
+            one_level.label_setting(userParam)
+            _cost, _routes = one_level.return_result()
+            # print(_cost)
+            # print(_route.path)
+        # main_problem.MainProbRelax.write(file_name_str + '.sol')
+        # print('finished')
+        if main_problem.X_r[0].x < 1E-6:
+            "=====调整routes的Q值====="
+            for i, x in enumerate(main_problem.X_r[1:]):
+                routes[i].setQ(x.X)
+
+            # myfile = open('myfile.txt', 'wb+')
+            # pickle.dump(main_problem.routes, myfile)
+            # myfile.close()
+
+            return True, main_problem.MainProbRelax.ObjVal
+        else:
+            return False, 1E10
+
+
 if __name__ == '__main__':
+    """
     userParam = UserParam()
     one_level = OneLevel()
 
@@ -481,3 +532,7 @@ if __name__ == '__main__':
         # print(_route.path)
     main_problem.MainProbRelax.write(file_name_str + '.sol')
     print('finished')
+    """
+
+    cg = columngen()
+    print(cg.computeColGen(UserParam(), []))

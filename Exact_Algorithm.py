@@ -53,7 +53,7 @@ class Info:
 
     def init_with_solomon(self):
         """================================更改文件路径==========================="""
-        pos = self.resolve_self_created_case(r'.\C101_15.csv')
+        pos = self.resolve_self_created_case(r'.\C101_10.csv')
         station_num, self.vehicle_num, _capacity, H = map(int, pos[0])
         self.H = H
         c_ij = np.array(pos[1:station_num + 2])
