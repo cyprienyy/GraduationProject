@@ -5,9 +5,10 @@ import numpy as np
 from collections import deque, Counter
 import pickle
 import heapq
+from Data import file_name_str
 
 BIG = 1E10
-GAP = 0.001
+GAP = 1E-6
 COL = 1
 
 
@@ -453,7 +454,7 @@ class columngen:
     def computeColGen(self, userParam, routes):
         COL = 0
         one_level = OneLevel()
-        file_name_str = 'C101_10'
+        # file_name_str = 'C101_10'
         main_problem = MainProblem(routes)
         main_problem.optimize()
         _dual = main_problem.get_dual_solution()

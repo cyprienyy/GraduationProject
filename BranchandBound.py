@@ -1,7 +1,7 @@
 from BP import UserParam, columngen, Route
 from collections import defaultdict
 import pickle
-
+from Data import file_name_str
 
 class treeBB:
     def __init__(self, father, son0, branchFrom, branchTo, branchValue, lowestValue, toplevel):
@@ -27,7 +27,6 @@ def EdgesBasedOnBranching(userParam: UserParam, branching: treeBB, recur: bool):
                 for i in range(userParam.dist.shape[0]):
                     if i != branching.branchFrom:
                         userParam.ban(i, branching.branchTo)
-            userParam.ban(branching.branchTo, branching.branchFrom)
         if recur is True:
             EdgesBasedOnBranching(userParam, branching.father, True)
 
@@ -56,10 +55,10 @@ class BranchAndBound:
         branching.lowestValue = CGobj
 
         # 关于什么时候可以计算lower_bound
-        if branching.father is not None and branching.father.son0 is not None and branching.father.toplevel is True:
-            self.lower_bound = min(branching.lowestValue, branching.father.son0.lowestValue)
-            branching.toplevel = True
-        elif branching.father is None:
+        # if branching.father is not None and branching.father.son0 is not None and branching.father.toplevel is True:
+        #     self.lower_bound = min(branching.lowestValue, branching.father.son0.lowestValue)
+        #     branching.toplevel = True
+        if branching.father is None:
             self.lower_bound = CGobj
 
         if branching.lowestValue > self.upper_bound:
@@ -171,9 +170,9 @@ if __name__ == '__main__':
     userParam = UserParam()
     branching = None
 
-    myfile = open('C101_10.txt', 'rb')
+    myfile = open(file_name_str + '.txt', 'rb')
     routes = pickle.load(myfile)
     myfile.close()
 
     bnb.BBNode(userParam, routes, branching, bestRoutes, 0)
-    print(bnb.upper_bound, bnb.lower_bound)
+    print(bnb.upper_bound)

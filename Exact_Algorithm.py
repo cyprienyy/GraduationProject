@@ -2,6 +2,7 @@ import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
 import re
+from Data import file_name_str
 
 satellite_num = 9
 satellite_ser = 90
@@ -53,7 +54,7 @@ class Info:
 
     def init_with_solomon(self):
         """================================更改文件路径==========================="""
-        pos = self.resolve_self_created_case(r'.\C101_10.csv')
+        pos = self.resolve_self_created_case(file_name_str + '.csv')
         station_num, self.vehicle_num, _capacity, H = map(int, pos[0])
         self.H = H
         c_ij = np.array(pos[1:station_num + 2])

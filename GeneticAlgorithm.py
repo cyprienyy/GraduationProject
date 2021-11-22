@@ -1,7 +1,7 @@
 import numpy as np
 import geatpy as ea
 import re
-
+from Data import file_name_str
 
 class Info:
 
@@ -45,7 +45,7 @@ class Info:
         self.init_with_solomon()
 
     def init_with_solomon(self):
-        pos = self.resolve_self_created_case(r'.\RC201.csv')
+        pos = self.resolve_self_created_case(file_name_str + '.csv')
         station_num, self.vehicle_num, _capacity, H = map(int, pos[0])
         self.c_ij = np.array(pos[1:station_num + 2])
         self.t_ij = self.c_ij / 1
@@ -117,7 +117,7 @@ class Info:
                 _prev_loc = _task
                 del journey[0]
         _dis += self.c_ij[_prev_loc, self.vehicle_end_locations[_v]]
-        print(_route, _dis+_t_p)
+        print(_route, _dis + _t_p)
         return _dis + _t_p  # 返回值
 
 
